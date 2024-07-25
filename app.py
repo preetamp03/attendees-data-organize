@@ -25,14 +25,14 @@ def process_growthflow(file):
             st.error(f"Missing columns in Growthflow file. Expected columns: {required_columns}")
             return None
 
+        # Select only the necessary columns
+        df = df[required_columns]
+
         # Convert Attendance_Day to string and handle NaN values
         df['Attendance_Day'] = df['Attendance_Day'].astype(str).fillna('')
 
-        # Convert Attendance_Day to set of unique days per person
-        df['Attendance_Day'] = df['Attendance_Day'].apply(lambda x: x.split(',') if x else [])
-        
-        # Normalize attendance days (remove duplicates)
-        df['Attendance_Day'] = df['Attendance_Day'].apply(lambda days: set(days))
+        # Split and normalize attendance days (remove duplicates)
+        df['Attendance_Day'] = df['Attendance_Day'].apply(lambda x: set(x.split(',')) if x else set())
         
         # Explode the Attendance_Day into multiple rows for each day attended
         df = df.explode('Attendance_Day')
@@ -52,10 +52,10 @@ def process_growthflow(file):
 def process_webinarjam(file):
     try:
         # Determine the file extension
-        file_extension = file.name.split('.')[-1]
+        file_extension = file.name.split('.')[-1].lower()
 
         # Read the file based on its extension
-        if file_extension == 'csv':
+        if file_extension in ['csv', 'csv']:
             df = pd.read_csv(file, dtype=str)  # Read as strings to preserve phone numbers
         elif file_extension == 'xlsx':
             df = pd.read_excel(file, dtype=str)  # Read as strings to preserve phone numbers
@@ -68,13 +68,23 @@ def process_webinarjam(file):
             st.error(f"Missing columns in WebinarJam file. Expected columns: {required_columns}")
             return None
 
+        # Select only the necessary columns
+        df = df[required_columns]
+
         # Ensure 'Phone number' column is treated as string
         df['Phone number'] = df['Phone number'].astype(str).str.strip()
 
-        df['Attendance'] = df['Attended live'].apply(lambda x: 1 if x == 'Yes' else 0)
+        # Convert 'Attended live' to attendance count
+        df['Attendance'] = df['Attended live'].apply(lambda x: 1 if x.lower() == 'yes' else 0)
         
         # Remove duplicates and aggregate attendance by email
         summary = df.groupby(['First name', 'Email', 'Phone number'])['Attendance'].sum().reset_index()
+        
+        # Rename columns for consistency
+        summary.rename(columns={
+            'First name': 'First Name',
+            'Phone number': 'Phone'
+        }, inplace=True)
         
         return summary
     except Exception as e:
@@ -96,25 +106,22 @@ if option == "Growthflow":
 elif option == "WebinarJam":
     st.sidebar.write("Make sure column names are: ['First name', 'Email', 'Phone number', 'Attended live'].")
 
-uploaded_file = st.sidebar.file_uploader("Upload your file", type=['xlsx', 'csv'])
+uploaded_file = st.sidebar.file_uploader("Upload your file", type=['csv', 'xlsx'])
 
 if uploaded_file is not None:
     if option == "Growthflow":
-        if uploaded_file.name.endswith('.xlsx'):
-            result_df = process_growthflow(uploaded_file)
-            if result_df is not None:
-                st.write("Processed Growthflow Data")
-                st.write(result_df)
-                
-                # Provide download option
-                result_xlsx = result_df.to_excel(index=False)
-                st.download_button(
-                    label="Download Excel file",
-                    data=result_xlsx,
-                    file_name='growthflow_summary.xlsx'
-                )
-        else:
-            st.error("Please upload a .xlsx file for Growthflow.")
+        result_df = process_growthflow(uploaded_file)
+        if result_df is not None:
+            st.write("Processed Growthflow Data")
+            st.write(result_df)
+            
+            # Provide download option
+            result_xlsx = result_df.to_excel(index=False)
+            st.download_button(
+                label="Download Excel file",
+                data=result_xlsx,
+                file_name='growthflow_summary.xlsx'
+            )
     
     elif option == "WebinarJam":
         result_df = process_webinarjam(uploaded_file)
