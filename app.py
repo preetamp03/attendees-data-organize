@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 from collections import Counter
+import io
+
+st.logo('images/logo.png')
 
 # Function to determine the most frequent First Name for each email
 def get_most_frequent_first_name(df):
@@ -19,7 +22,18 @@ def get_most_frequent_first_name(df):
 # Function to validate and process Growthflow files
 def process_growthflow(file):
     try:
-        df = pd.read_excel(file)
+        # Determine the file extension
+        file_extension = file.name.split('.')[-1].lower()
+
+        # Read the file based on its extension
+        if file_extension in ['csv', 'csv']:
+            df = pd.read_csv(file, dtype=str)  # Read as strings to preserve phone numbers
+        elif file_extension == 'xlsx':
+            df = pd.read_excel(file, dtype=str)  # Read as strings to preserve phone numbers
+        else:
+            st.error("Unsupported file format. Please upload a .csv or .xlsx file.")
+            return None
+
         required_columns = ['First Name', 'Email', 'Phone', 'Attendance_Day']
         if not all(col in df.columns for col in required_columns):
             st.error(f"Missing columns in Growthflow file. Expected columns: {required_columns}")
@@ -91,7 +105,7 @@ def process_webinarjam(file):
         st.error(f"Error processing WebinarJam file: {e}")
         return None
 
-st.title("Attendance Summary Web Application")
+st.title("Attendance Summary")
 
 st.sidebar.title("Upload Options")
 
@@ -115,12 +129,16 @@ if uploaded_file is not None:
             st.write("Processed Growthflow Data")
             st.write(result_df)
             
-            # Provide download option
-            result_xlsx = result_df.to_excel(index=False)
+            # Provide download option for Excel file
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                result_df.to_excel(writer, index=False)
+            
             st.download_button(
                 label="Download Excel file",
-                data=result_xlsx,
-                file_name='growthflow_summary.xlsx'
+                data=buffer.getvalue(),
+                file_name='growthflow_summary.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
     
     elif option == "WebinarJam":
@@ -129,18 +147,25 @@ if uploaded_file is not None:
             st.write("Processed WebinarJam Data")
             st.write(result_df)
             
-            # Provide download option
+            # For .xlsx files
             if uploaded_file.name.endswith('.xlsx'):
-                result_xlsx = result_df.to_excel(index=False)
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    result_df.to_excel(writer, index=False)
+                
                 st.download_button(
                     label="Download Excel file",
-                    data=result_xlsx,
-                    file_name='webinarjam_summary.xlsx'
+                    data=buffer.getvalue(),
+                    file_name='webinarjam_summary.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                 )
             else:
-                result_csv = result_df.to_csv(index=False)
+                # For .csv files
+                result_csv = result_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     label="Download CSV file",
                     data=result_csv,
-                    file_name='webinarjam_summary.csv'
+                    file_name='webinarjam_summary.csv',
+                    mime='text/csv'
                 )
+
