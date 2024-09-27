@@ -3,9 +3,10 @@ import pandas as pd
 from collections import Counter
 import io
 
-st.logo('images/logo.png')
+logo_path = 'images/logo.png'
+st.logo(logo_path)
 
-# Function to determine the most frequent First Name for each email
+# Function to determine the most frequent First Name for    each email
 def get_most_frequent_first_name(df):
     def most_frequent_name(names):
         if len(names) > 0:
